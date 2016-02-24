@@ -1187,8 +1187,8 @@ void OBSBasicSettings::LoadAdvOutputRecordingSettings()
 			"RecType");
 	const char *format = config_get_string(main->Config(), "AdvOut",
 			"RecFormat");
-	const char *path = config_get_string(main->Config(), "AdvOut",
-			"RecFilePath");
+	const char *path = config_get_string(main->Config(), "SimpleOutput",
+			"FilePath");
 	bool noSpace = config_get_bool(main->Config(), "AdvOut",
 			"RecFileNameWithoutSpace");
 	bool rescale = config_get_bool(main->Config(), "AdvOut",
@@ -2236,7 +2236,7 @@ void OBSBasicSettings::SaveOutputSettings()
 	config_set_string(main->Config(), "AdvOut", "RecType",
 			RecTypeFromIdx(ui->advOutRecType->currentIndex()));
 
-	SaveEdit(ui->advOutRecPath, "AdvOut", "RecFilePath");
+	SaveEdit(ui->advOutRecPath, "SimpleOutput", "FilePath");
 	SaveCheckBox(ui->advOutNoSpace, "AdvOut", "RecFileNameWithoutSpace");
 	SaveCombo(ui->advOutRecFormat, "AdvOut", "RecFormat");
 	SaveComboData(ui->advOutRecEncoder, "AdvOut", "RecEncoder");
