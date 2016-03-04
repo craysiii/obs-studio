@@ -14,6 +14,9 @@
 #include "xcompcap-helper.hpp"
 #include "xcursor.h"
 
+#include <regex>
+#include <iostream>
+
 #define xdisp (XCompcap::disp())
 #define WIN_STRING_DIV "\r\n"
 
@@ -67,6 +70,12 @@ obs_properties_t *XCompcapMain::properties()
 				desc.c_str());
 	}
 
+	obs_properties_add_text(props, "regex_pattern", "Window Regex",
+			OBS_TEXT_DEFAULT);
+
+	obs_properties_add_bool(props, "use_regex", 
+			"Use Regex To Find Window");
+
 	obs_properties_add_int(props, "cut_top", obs_module_text("CropTop"),
 			0, 4096, 1);
 	obs_properties_add_int(props, "cut_left", obs_module_text("CropLeft"),
@@ -92,6 +101,8 @@ obs_properties_t *XCompcapMain::properties()
 void XCompcapMain::defaults(obs_data_t *settings)
 {
 	obs_data_set_default_string(settings, "capture_window", "");
+	obs_data_set_default_string(settings, "regex_pattern", "");
+	obs_data_set_default_bool(settings, "use_regex", false);
 	obs_data_set_default_int(settings, "cut_top", 0);
 	obs_data_set_default_int(settings, "cut_left", 0);
 	obs_data_set_default_int(settings, "cut_right", 0);
@@ -133,11 +144,13 @@ struct XCompcapMain_private
 	obs_source_t *source;
 
 	std::string windowName;
+	std::regex regexPattern;
 	Window win;
 	int cut_top, cur_cut_top;
 	int cut_left, cur_cut_left;
 	int cut_right, cur_cut_right;
 	int cut_bot, cur_cut_bot;
+	bool useRegex;
 	bool inverted;
 	bool swapRedBlue;
 	bool lockX;
@@ -185,7 +198,6 @@ XCompcapMain::~XCompcapMain()
 	}
 
 	xcc_cleanup(p);
-
 	if (p->cursor) {
 		xcursor_destroy(p->cursor);
 		p->cursor = nullptr;
@@ -230,6 +242,24 @@ static Window getWindowFromString(std::string wstr)
 	}
 
 	return matchedNameWin;
+}
+
+static Window getWindowFromRegex(std::regex pattern)
+{
+	Window window = 0;
+
+	try {
+		for (Window win: XCompcap::getTopLevelWindows()) {
+			if (std::regex_search(
+					XCompcap::getWindowName(win), pattern)) {
+				window = win;
+			}
+		}
+	} catch (...) {
+		
+	}
+
+	return window;
 }
 
 static void xcc_cleanup(XCompcapMain_private *p)
@@ -279,6 +309,17 @@ void XCompcapMain::updateSettings(obs_data_t *settings)
 		p->windowName = windowName;
 		p->win = getWindowFromString(windowName);
 
+		bool useRegex = obs_data_get_bool(settings,
+				"use_regex");
+		if (useRegex)
+		{
+			p->useRegex = true;
+			const char *regexPattern = obs_data_get_string(settings,
+				"regex_pattern");
+			p->regexPattern = std::regex(regexPattern);
+			p->win = getWindowFromRegex(p->regexPattern);
+		}
+
 		p->cut_top = obs_data_get_int(settings, "cut_top");
 		p->cut_left = obs_data_get_int(settings, "cut_left");
 		p->cut_right = obs_data_get_int(settings, "cut_right");
@@ -287,8 +328,12 @@ void XCompcapMain::updateSettings(obs_data_t *settings)
 		p->swapRedBlue = obs_data_get_bool(settings, "swap_redblue");
 		p->show_cursor = obs_data_get_bool(settings, "show_cursor");
 		p->include_border = obs_data_get_bool(settings, "include_border");
-	} else {
-		p->win = prevWin;
+	} else { // no settings
+		if (p->useRegex) {
+			p->win = getWindowFromRegex(p->regexPattern);
+		} else {
+			p->win = prevWin;
+		}
 	}
 
 	xlock.resetError();
@@ -461,7 +506,13 @@ void XCompcapMain::tick(float seconds)
 	XWindowAttributes attr;
 
 	if (!XGetWindowAttributes(xdisp, p->win, &attr)) {
-		Window newWin = getWindowFromString(p->windowName);
+		Window newWin;
+		if (p->useRegex) {
+			newWin = getWindowFromRegex(p->regexPattern);
+		}
+		else {
+			newWin = getWindowFromString(p->windowName);
+		}
 
 		if (XGetWindowAttributes(xdisp, newWin, &attr)) {
 			p->win = newWin;
