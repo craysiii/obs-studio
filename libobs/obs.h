@@ -550,8 +550,11 @@ EXPORT obs_data_t *obs_save_source(obs_source_t *source);
 /** Loads a source from settings data */
 EXPORT obs_source_t *obs_load_source(obs_data_t *data);
 
+typedef void (*obs_load_source_cb)(void *private_data, obs_source_t *source);
+
 /** Loads sources from a data array */
-EXPORT void obs_load_sources(obs_data_array_t *array);
+EXPORT void obs_load_sources(obs_data_array_t *array, obs_load_source_cb cb,
+		void *private_data);
 
 /** Saves sources to a data array */
 EXPORT obs_data_array_t *obs_save_sources(void);
@@ -559,6 +562,17 @@ EXPORT obs_data_array_t *obs_save_sources(void);
 typedef bool (*obs_save_source_filter_cb)(void *data, obs_source_t *source);
 EXPORT obs_data_array_t *obs_save_sources_filtered(obs_save_source_filter_cb cb,
 		void *data);
+
+enum obs_obj_type {
+	OBS_OBJ_TYPE_INVALID,
+	OBS_OBJ_TYPE_SOURCE,
+	OBS_OBJ_TYPE_OUTPUT,
+	OBS_OBJ_TYPE_ENCODER,
+	OBS_OBJ_TYPE_SERVICE
+};
+
+EXPORT enum obs_obj_type obs_obj_get_type(void *obj);
+EXPORT const char *obs_obj_get_id(void *obj);
 
 
 /* ------------------------------------------------------------------------- */

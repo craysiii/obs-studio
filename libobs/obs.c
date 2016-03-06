@@ -1474,7 +1474,8 @@ obs_source_t *obs_load_source(obs_data_t *source_data)
 	return obs_load_source_type(source_data);
 }
 
-void obs_load_sources(obs_data_array_t *array)
+void obs_load_sources(obs_data_array_t *array, obs_load_source_cb cb,
+		void *private_data)
 {
 	if (!obs) return;
 
@@ -1507,6 +1508,7 @@ void obs_load_sources(obs_data_array_t *array)
 			if (source->info.type == OBS_SOURCE_TYPE_TRANSITION)
 				obs_transition_load(source, source_data);
 			obs_source_load(source);
+			cb(private_data, source);
 		}
 		obs_data_release(source_data);
 	}
@@ -1650,6 +1652,7 @@ static inline char *dup_name(const char *name, bool private)
 
 static inline bool obs_context_data_init_wrap(
 		struct obs_context_data *context,
+		enum obs_obj_type       type,
 		obs_data_t              *settings,
 		const char              *name,
 		obs_data_t              *hotkey_data,
@@ -1658,6 +1661,7 @@ static inline bool obs_context_data_init_wrap(
 	assert(context);
 	memset(context, 0, sizeof(*context));
 	context->private = private;
+	context->type = type;
 
 	pthread_mutex_init_value(&context->rename_cache_mutex);
 	if (pthread_mutex_init(&context->rename_cache_mutex, NULL) < 0)
@@ -1679,13 +1683,14 @@ static inline bool obs_context_data_init_wrap(
 
 bool obs_context_data_init(
 		struct obs_context_data *context,
+		enum obs_obj_type       type,
 		obs_data_t              *settings,
 		const char              *name,
 		obs_data_t              *hotkey_data,
 		bool                    private)
 {
-	if (obs_context_data_init_wrap(context, settings, name, hotkey_data,
-				private)) {
+	if (obs_context_data_init_wrap(context, type, settings, name,
+				hotkey_data, private)) {
 		return true;
 	} else {
 		obs_context_data_free(context);
@@ -1767,4 +1772,27 @@ profiler_name_store_t *obs_get_profiler_name_store(void)
 uint64_t obs_get_video_frame_time(void)
 {
 	return obs ? obs->video.video_time : 0;
+}
+
+enum obs_obj_type obs_obj_get_type(void *obj)
+{
+	struct obs_context_data *context = obj;
+	return context ? context->type : OBS_OBJ_TYPE_INVALID;
+}
+
+const char *obs_obj_get_id(void *obj)
+{
+	struct obs_context_data *context = obj;
+	if (!context)
+		return NULL;
+
+	switch (context->type) {
+	case OBS_OBJ_TYPE_SOURCE:  return ((obs_source_t*)obj)->info.id;
+	case OBS_OBJ_TYPE_OUTPUT:  return ((obs_output_t*)obj)->info.id;
+	case OBS_OBJ_TYPE_ENCODER: return ((obs_encoder_t*)obj)->info.id;
+	case OBS_OBJ_TYPE_SERVICE: return ((obs_service_t*)obj)->info.id;
+	default:;
+	}
+
+	return NULL;
 }
